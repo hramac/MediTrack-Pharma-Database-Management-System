@@ -1,0 +1,105 @@
+#Query 1
+
+USE meditrack;
+SELECT 
+    drug_id,
+    drug_name,
+    inventory_quantity,
+    SUM(sale_quantity) AS sale_quantity,
+    (inventory_quantity - SUM(sale_quantity)) AS remaining_stock
+FROM drugs
+        JOIN inventories USING (drug_id)
+        JOIN sales USING (drug_id)
+GROUP BY drug_id, drug_name, inventory_quantity
+ORDER BY remaining_stock;
+
+
+
+#Query 2
+
+USE meditrack;
+WITH drug_sales AS (
+  SELECT d.drug_id, d.drug_name, c.company_name, d.drug_price, i.cost_price_per_unit, 
+         SUM(s.sale_quantity) AS sale_quantity, 
+         SUM(s.sale_quantity * d.drug_price) AS final_selling_price, 
+         SUM(s.sale_quantity * i.cost_price_per_unit) AS final_cost_price
+  FROM drugs d
+	JOIN sales s USING (drug_id)
+	JOIN companies c USING (company_id)
+	JOIN inventories i USING (drug_id)
+  GROUP BY d.drug_id, d.drug_name, c.company_name, d.drug_price, i.cost_price_per_unit
+)
+SELECT drug_id, drug_name, company_name, drug_price, cost_price_per_unit, sale_quantity, 
+       ROUND(final_selling_price, 2) AS final_selling_price, ROUND(final_cost_price, 2) AS final_cost_price, 
+       ROUND(((final_selling_price - final_cost_price) / final_selling_price) * 100, 2) AS net_profit_percentage
+FROM drug_sales
+ORDER BY net_profit_percentage DESC;
+
+
+
+#Query 3
+
+USE meditrack;
+SELECT bill_ID, CONCAT(customer_first_name, ' ', customer_last_name) AS customer_name, bill_date,
+SUM(sale_quantity) AS total_quantity, ROUND(SUM(sale_quantity * drug_price), 2) AS total_price
+FROM sales
+	JOIN drugs USING (drug_id)
+	JOIN bills USING (bill_id)
+	JOIN customers USING (customer_id)
+GROUP BY bill_ID
+ORDER BY total_price DESC;
+
+
+
+#Query 4 
+
+USE meditrack;
+SELECT 
+    drug_name, expiry_date
+FROM inventories
+        JOIN drugs USING (drug_id)
+WHERE expiry_date < CURDATE();
+
+
+
+#Query 5
+
+USE meditrack;
+WITH cte AS (
+    SELECT e.employee_id,
+        CONCAT(e.employee_first_name, ' ', e.employee_last_name) AS employee_name,
+        COUNT(b.employee_id) AS bills_generated
+    FROM bills b
+        JOIN employees e ON b.employee_ID = e.employee_ID
+    GROUP BY b.employee_ID
+)
+SELECT employee_id, employee_name, bills_generated 
+FROM cte 
+WHERE bills_generated > (SELECT AVG(bills_generated) FROM cte)
+ORDER BY bills_generated DESC;
+
+
+
+#Query 6
+
+USE meditrack;
+SELECT doctor_id, 
+    CONCAT(doctor_first_name, ' ' , doctor_last_name) AS doctor_name, 
+    COUNT(DISTINCT customer_id) AS customer_count
+FROM prescriptions 
+    JOIN doctors USING(doctor_id)
+GROUP BY doctor_id
+HAVING COUNT(DISTINCT customer_id)
+ORDER BY customer_count DESC;
+
+
+#Query 7
+
+USE meditrack;
+SELECT  CONCAT(customer_first_name, ' ', customer_last_name) AS customer_name, bill_date AS date_visited, insurance_end_date 
+FROM customers 
+    JOIN bills USING(customer_id)
+    JOIN insurances USING(customer_id)
+GROUP BY customer_name, bill_date, insurance_end_date
+HAVING bill_date > insurance_end_date
+ORDER BY insurance_end_date;
